@@ -3,7 +3,10 @@
     <header class="page-head">
       <div>
         <h2>考古调查管理</h2>
-        <p class="page-desc">维护调查记录，围绕调查编号、调查区域、调查方法、地表发现做登记、筛选与状态流转。</p>
+        <p class="page-desc">
+          维护调查记录，围绕调查编号、调查区域、调查方法、地表发现做登记、筛选与状态流转；
+          三维坐标批量校核判重测的测点，会在下方「现场复测清单」自动生成一条复测任务。
+        </p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记调查记录</button>
@@ -16,6 +19,34 @@
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
+    </div>
+
+    <!-- 现场复测清单：另一个业务面（三维坐标校核）回写的重测任务统一在这里处理 -->
+    <div class="remeasure-panel">
+      <h3>现场复测清单（{{ remeasureRows.length }} 条待办）</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>任务编号</th>
+            <th>所属单位</th>
+            <th>复测测点与较差</th>
+            <th>下发人</th>
+            <th>当前状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in remeasureRows" :key="`rm-${String(row.id)}`">
+            <td>{{ row['调查编号'] }}</td>
+            <td>{{ row['调查区域'] }}</td>
+            <td>{{ row['地表发现'] }}<span v-if="row['断面观察']">（{{ row['断面观察'] }}）</span></td>
+            <td>{{ row['调查人'] }}</td>
+            <td>{{ row.status }}</td>
+          </tr>
+          <tr v-if="!remeasureRows.length">
+            <td colspan="5" class="empty-state">暂无现场复测任务，坐标校核发现高程超差时会自动新增一条</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <p class="status-legend">
@@ -85,13 +116,24 @@ const meta = moduleMeta('survey')
 const columns = ["调查编号", "调查区域", "调查方法", "地表发现", "断面观察", "初步断代", "调查人", "记录状态"]
 const actions = ["完成记录", "提交审核", "安排复查"]
 const statuses = ["调查中", "已记录", "已审核", "需复查"]
-const stats = [{"label": "调查次数", "value": 0}, {"label": "已审核记录", "value": 0}, {"label": "待复查记录", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+// 现场复测清单：调查方法为「现场复测」的任务，由三维坐标校核重测时回写生成。
+const remeasureRows = computed(() =>
+  rows.value.filter((row) => String(row['调查方法'] ?? '') === '现场复测'),
+)
+
+const stats = computed(() => [
+  { label: '调查次数', value: rows.value.length },
+  { label: '已审核记录', value: rows.value.filter((row) => String(row.status) === '已审核').length },
+  { label: '现场复测待办', value: remeasureRows.value.length },
+])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -135,3 +177,17 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.remeasure-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.remeasure-panel h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+</style>
